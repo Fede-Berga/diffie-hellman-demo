@@ -36,16 +36,17 @@ class Bob {
       this.ws = ws;
       console.log('✅ Alice connected!\n');
       
-      this.initializeDH();
+      // Don't initialize DH immediately, wait for Alice's public key first
       
       ws.on('message', (data) => {
         this.handleMessage(JSON.parse(data.toString()));
       });
 
       ws.on('close', () => {
-        console.log('\n❌ Alice disconnected');
-        if (this.rl) this.rl.close();
-        process.exit(0);
+        console.log('\n❌ Client disconnected');
+        if (this.rl) {
+          this.rl.close();
+        }
       });
     });
   }
@@ -88,6 +89,11 @@ class Bob {
     this.alicePublicKey = alicePublicKey;
     console.log(`📨 Received Alice's public key (A): ${alicePublicKey}\n`);
     
+    // Initialize Bob's keys if not done yet
+    if (!this.publicKey) {
+      this.initializeDH();
+    }
+    
     // Compute shared secret
     this.sharedSecret = computeSharedSecret(
       alicePublicKey,
@@ -104,9 +110,18 @@ class Bob {
   }
 
   handleEncryptedMessage(encryptedData) {
-    const decrypted = decrypt(encryptedData, this.sharedSecret);
-    console.log(`\n📩 Alice: ${decrypted}`);
-    this.rl.prompt();
+    if (!this.sharedSecret) {
+      console.log('\n⚠️  Received encrypted message before shared secret established');
+      return;
+    }
+    try {
+      const decrypted = decrypt(encryptedData, this.sharedSecret);
+      console.log(`\n📩 Alice: ${decrypted}`);
+      this.rl.prompt();
+    } catch (error) {
+      console.log(`\n❌ Failed to decrypt message: ${error.message}`);
+      this.rl.prompt();
+    }
   }
 
   startChat() {
@@ -134,7 +149,7 @@ class Bob {
 
     this.rl.on('close', () => {
       console.log('\n👋 Goodbye!');
-      process.exit(0);
+      if (this.ws) this.ws.close();
     });
   }
 

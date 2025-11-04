@@ -10,7 +10,8 @@ import {
   displayParams
 } from '../shared/crypto.js';
 
-const BOB_URL = 'ws://localhost:8080';
+const BOB_URL = 'ws://localhost:8081'; // Connect through Eve (proxy) if running, otherwise use 8080
+const FALLBACK_URL = 'ws://localhost:8080'; // Direct to Bob if Eve is not running
 
 class Alice {
   constructor() {
@@ -27,12 +28,16 @@ class Alice {
     console.log('║           ALICE (Client)               ║');
     console.log('╚════════════════════════════════════════╝\n');
 
-    console.log(`🔗 Connecting to Bob at ${BOB_URL}...`);
+    this.connectToServer(BOB_URL);
+  }
+
+  connectToServer(url) {
+    console.log(`🔗 Connecting to ${url}...`);
     
-    this.ws = new WebSocket(BOB_URL);
+    this.ws = new WebSocket(url);
 
     this.ws.on('open', () => {
-      console.log('✅ Connected to Bob!\n');
+      console.log('✅ Connected!\n');
       this.initializeDH();
     });
 
@@ -41,15 +46,22 @@ class Alice {
     });
 
     this.ws.on('error', (error) => {
-      console.error('❌ Connection error:', error.message);
-      console.log('\n💡 Make sure Bob is running first (npm run bob)');
-      process.exit(1);
+      if (url === BOB_URL) {
+        console.log('⚠️  Could not connect to proxy (Eve might not be running)');
+        console.log('🔄 Trying direct connection to Bob...\n');
+        this.connectToServer(FALLBACK_URL);
+      } else {
+        console.error('❌ Connection error:', error.message);
+        console.log('\n💡 Make sure Bob is running first (npm run bob)');
+        process.exit(1);
+      }
     });
 
     this.ws.on('close', () => {
-      console.log('\n❌ Disconnected from Bob');
-      if (this.rl) this.rl.close();
-      process.exit(0);
+      console.log('\n❌ Disconnected from server');
+      if (this.rl) {
+        this.rl.close();
+      }
     });
   }
 
@@ -107,9 +119,18 @@ class Alice {
   }
 
   handleEncryptedMessage(encryptedData) {
-    const decrypted = decrypt(encryptedData, this.sharedSecret);
-    console.log(`\n📩 Bob: ${decrypted}`);
-    this.rl.prompt();
+    if (!this.sharedSecret) {
+      console.log('\n⚠️  Received encrypted message before shared secret established');
+      return;
+    }
+    try {
+      const decrypted = decrypt(encryptedData, this.sharedSecret);
+      console.log(`\n📩 Bob: ${decrypted}`);
+      this.rl.prompt();
+    } catch (error) {
+      console.log(`\n❌ Failed to decrypt message: ${error.message}`);
+      this.rl.prompt();
+    }
   }
 
   startChat() {
@@ -137,7 +158,7 @@ class Alice {
 
     this.rl.on('close', () => {
       console.log('\n👋 Goodbye!');
-      process.exit(0);
+      if (this.ws) this.ws.close();
     });
   }
 

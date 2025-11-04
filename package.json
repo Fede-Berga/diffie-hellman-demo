@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "alice": "node alice/alice.js",
-    "bob": "node bob/bob.js"
+    "bob": "node bob/bob.js",
+    "eve": "node eve/eve.js"
   },
   "keywords": ["diffie-hellman", "cryptography", "key-exchange"],
   "author": "",
