@@ -1,0 +1,17 @@
+{
+  "name": "diffie-hellman-demo",
+  "version": "1.0.0",
+  "description": "Diffie-Hellman Key Exchange Demo with Two Communicating Apps",
+  "type": "module",
+  "scripts": {
+    "alice": "node alice/alice.js",
+    "bob": "node bob/bob.js"
+  },
+  "keywords": ["diffie-hellman", "cryptography", "key-exchange"],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "ws": "^8.14.2",
+    "readline": "^1.3.0"
+  }
+}
