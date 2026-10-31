@@ -1,374 +1,99 @@
-<div align="center">
+# diffie-hellman-demo
 
-# 🔐 Diffie-Hellman Key Exchange Demo
+A teaching demo of the Diffie-Hellman key exchange: Alice and Bob agree on a shared secret over WebSockets, and Eve, relaying their traffic, recovers it by brute force because the parameters are deliberately tiny.
 
-### Interactive Educational Implementation with Man-in-the-Middle Attack Simulation
+## Quick start
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Node.js Version](https://img.shields.io/badge/node-%3E%3D14.0.0-brightgreen)](https://nodejs.org/)
-[![WebSocket](https://img.shields.io/badge/WebSocket-Protocol-blue)](https://developer.mozilla.org/en-US/docs/Web/API/WebSockets_API)
-[![Educational](https://img.shields.io/badge/Purpose-Educational-orange)](https://github.com)
+Requires [Bun](https://bun.sh) (tested with 1.4.4). The scripts in `package.json` call `node`: Bun runs them with Node.js when it is on your `PATH` (tested with Node 26) and with its own runtime otherwise.
 
-```
-    Alice                    Eve                      Bob
-   (Client)            (Eavesdropper)              (Server)
-      |                      |                        |
-      |---- Public Key A --->|---- Public Key A ----->|
-      |                      |                        |
-      |<--- Public Key B ----|<--- Public Key B ------|
-      |                      |                        |
-      |   🔒 Encrypted Msg ->| 🕵️  INTERCEPTED!       |
-      |                      |   ✓ Decrypted          |
-      |                      |---- Forwarded -------->|
-      |                      |                        |
-```
-
-[Features](#-features) • [Quick Start](#-quick-start) • [How It Works](#-how-it-works) • [Architecture](#-architecture) • [Security](#-security-demonstration)
-
-</div>
-
----
-
-## 📋 Table of Contents
-
-- [Features](#-features)
-- [Prerequisites](#-prerequisites)
-- [Installation](#-installation)
-- [Quick Start](#-quick-start)
-- [How It Works](#-how-it-works)
-- [Architecture](#-architecture)
-- [Security Demonstration](#-security-demonstration)
-- [Educational Value](#-educational-value)
-- [Technical Details](#-technical-details)
-- [Production Considerations](#-production-considerations)
-- [License](#-license)
-
-## ✨ Features
-
-- 🎓 **Educational**: Perfect for teaching cryptography and network security concepts
-- 🔍 **Man-in-the-Middle Demonstration**: Shows real-time eavesdropping and decryption
-- 💬 **Interactive Chat**: Real encrypted communication between two parties
-- 📊 **Detailed Logging**: Every step of the key exchange is explained with mathematical formulas
-- 🕵️ **Brute Force Attack Simulation**: Watch Eve crack the shared secret in real-time
-- 🎯 **WebSocket-Based**: Real network communication, not just simulation
-- 📦 **Self-Contained**: No external dependencies beyond Node.js packages
-
-## 🔧 Prerequisites
-
-- **Node.js** >= 14.0.0 or **Bun** >= 1.0.0
-- **npm** or **yarn** or **bun**
-- 3 terminal windows (for full demonstration with eavesdropper)
-
-## 📥 Installation
-
-```bash
-# Clone the repository
-git clone <your-repo-url>
+```sh
+git clone https://github.com/Fede-Berga/diffie-hellman-demo.git
 cd diffie-hellman-demo
-
-# Install dependencies
-npm install
-# or
 bun install
 ```
 
-## 🚀 Quick Start
+Each party is an interactive process. Open one terminal per party and start them in this order:
 
-### Option 1: With Eavesdropper (Recommended for Teaching)
+```sh
+# Honest exchange
+bun run bob     # terminal 1: server on port 8080
+bun run alice   # terminal 2
 
-Open **3 terminal windows** and run in this **exact order**:
-
-#### Terminal 1️⃣ - Start Bob (Server)
-```bash
-npm run bob
-```
-✓ Wait for: `🟢 Bob's server listening on port 8080`
-
-#### Terminal 2️⃣ - Start Eve (Eavesdropper)
-```bash
-npm run eve
-```
-✓ Wait for: `✅ Eve connected to Bob!`
-
-#### Terminal 3️⃣ - Start Alice (Client)
-```bash
-npm run alice
-```
-✓ Now chat and watch Eve intercept everything! 🕵️
-
-### Option 2: Direct Connection (Without Eavesdropper)
-
-#### Terminal 1️⃣ - Start Bob
-```bash
-npm run bob
+# Eve in the middle
+bun run bob     # terminal 1
+bun run eve     # terminal 2: connects to Bob, listens on port 8081
+bun run alice   # terminal 3
 ```
 
-#### Terminal 2️⃣ - Start Alice
-```bash
-npm run alice
+Alice tries Eve's port first and falls back to Bob's, so the same command serves both scenarios. Once the keys are exchanged, type a line at the `Alice>` or `Bob>` prompt to send it. Ctrl+C at a prompt ends the conversation, but Bob's server keeps listening until a second Ctrl+C and Eve keeps running until you stop her. The parties are not built to reconnect, so stop all of them before the next run.
+
+## How it works
+
+`shared/crypto.js` holds the public parameters (p = 23, g = 5), square-and-multiply modular exponentiation, private-key generation and a toy XOR cipher. The parties exchange JSON messages: `public_key` carries A or B, `encrypted_message` carries base64 ciphertext.
+
+```mermaid
+sequenceDiagram
+    participant Alice
+    participant Bob
+    Note over Alice,Bob: Public parameters p = 23, g = 5
+    Note over Alice: random a, A = g^a mod p
+    Alice->>Bob: public_key A
+    Note over Bob: random b, B = g^b mod p
+    Bob->>Alice: public_key B
+    Note over Alice: s = B^a mod p
+    Note over Bob: s = A^b mod p
+    Alice->>Bob: encrypted_message, XOR with s
+    Bob->>Alice: encrypted_message, XOR with s
 ```
 
-Alice will automatically connect directly to Bob when Eve is not running.
+Both sides obtain the same s because (g^b)^a = (g^a)^b mod p, and neither a nor b leaves its process.
 
-## 🔍 How It Works
-
-### The Diffie-Hellman Protocol
-
-```
-1. Public Parameters (known to everyone)
-   ├── Prime number (p): 23
-   └── Generator (g): 5
-
-2. Alice generates private key (a)
-   └── Computes public key: A = g^a mod p
-
-3. Bob generates private key (b)
-   └── Computes public key: B = g^b mod p
-
-4. Exchange public keys (A ↔ B)
-
-5. Both compute shared secret
-   ├── Alice: s = B^a mod p
-   └── Bob: s = A^b mod p
-   
-6. Result: Both have same secret! ✨
-```
-
-### With Eve (Man-in-the-Middle)
+With Eve running, Alice's connection lands on Eve, who relays every message unchanged. Bob cannot tell the difference: he prints `Alice connected!` when Eve connects to him.
 
 ```mermaid
 sequenceDiagram
     participant Alice
     participant Eve
     participant Bob
-    
-    Note over Alice,Bob: Public Parameters: p=23, g=5
-    
-    Alice->>Eve: Public Key A
-    Eve->>Bob: Forward A
-    Note over Eve: 🕵️ Intercepts A
-    
-    Bob->>Eve: Public Key B
-    Eve->>Alice: Forward B
-    Note over Eve: 🕵️ Intercepts B
-    
-    Note over Eve: 🔨 Brute Force Attack
-    Note over Eve: ✓ Cracked Secret!
-    
-    Alice->>Eve: 🔒 Encrypted Message
-    Note over Eve: 🔓 DECRYPTED!
-    Eve->>Bob: Forward Message
-    
-    Bob->>Eve: 🔒 Encrypted Reply
-    Note over Eve: 🔓 DECRYPTED!
-    Eve->>Alice: Forward Reply
+    Eve->>Bob: connects at start-up
+    Alice->>Eve: public_key A
+    Eve->>Bob: public_key A, unchanged
+    Bob->>Eve: public_key B
+    Note over Eve: tries x = 1, 2, ... until g^x mod p = A, then s = B^x mod p
+    Eve->>Alice: public_key B, unchanged
+    Alice->>Eve: encrypted_message
+    Note over Eve: decrypts with s and prints the plaintext
+    Eve->>Bob: encrypted_message, unchanged
 ```
 
-## 🏗️ Architecture
+## What each party prints
 
-```
-diffie-hellman-demo/
-├── 📦 package.json          # Project configuration
-├── 📖 README.md             # This file
-├── 📂 shared/
-│   └── crypto.js            # Cryptographic functions (modPow, encrypt, decrypt)
-├── 📂 alice/
-│   └── alice.js             # Alice's client application (port 8081 → 8080)
-├── 📂 bob/
-│   └── bob.js               # Bob's server application (port 8080)
-└── 📂 eve/
-    └── eve.js               # Eve's proxy server (port 8081, connects to 8080)
-```
+- **Bob**: when Alice's public key arrives, the parameters, his private key b, B = g^b mod p and s = A^b mod p with the numbers filled in; then a `Bob>` prompt and every incoming message, decrypted.
+- **Alice**: the same for her side (a, A = g^a mod p, s = B^a mod p), then an `Alice>` prompt.
+- **Eve**: every relayed message with its direction and type, the brute-force search, the recovered secret and the plaintext of each chat message. From one run:
 
-### Component Responsibilities
-
-| Component | Role | Port | Description |
-|-----------|------|------|-------------|
-| **Bob** 🔵 | Server | 8080 | Accepts connections and initiates key exchange |
-| **Alice** 🔴 | Client | - | Connects to server (via Eve if available) |
-| **Eve** 🟡 | Proxy | 8081 | Intercepts traffic and attempts to decrypt |
-
-## 🛡️ Security Demonstration
-
-### What Eve Can See (Public Information)
-```javascript
-✓ Prime (p): 23
-✓ Generator (g): 5
-✓ Alice's public key (A): [intercepted]
-✓ Bob's public key (B): [intercepted]
-✓ All encrypted messages
-```
-
-### What Eve Cannot See (Private Information)
-```javascript
-✗ Alice's private key (a): [never transmitted]
-✗ Bob's private key (b): [never transmitted]
-✗ Shared secret (s): [computed independently]
-```
-
-### Eve's Attack Strategy
-
-1. **Intercept**: Capture all public keys
-2. **Brute Force**: Try all possible private keys (1 to p-1)
-3. **Verify**: Check if g^guess mod p == intercepted_public_key
-4. **Decrypt**: Use found private key to compute shared secret
-5. **Result**: With p=23, Eve succeeds in milliseconds! ⚠️
-
-### Example Terminal Output
-
-```bash
-🔨 EVE ATTEMPTING TO CRACK THE SHARED SECRET...
-
-Strategy: Brute force attack on private keys
-Known values: p=23, g=5, A=21, B=2
-
+```text
 Trying to find Alice's private key (a):
-✓ Found Alice's private key: a = 13 (after 13 attempts in 0ms)
+✓ Found Alice's private key: a = 19 (after 19 attempts in 0ms)
 
-🎯 EVE CRACKED THE SHARED SECRET: 4
-   Calculated as: B^a mod p = 2^13 mod 23 = 4
-
-⚠️  SECURITY NOTE:
-   With small numbers (p=23), brute force is feasible.
-   With real-world parameters (2048+ bit primes),
-   this would take billions of years!
-
+🎯 EVE CRACKED THE SHARED SECRET: 2
+   Calculated as: B^a mod p = 13^19 mod 23 = 2
+...
 📨 INTERCEPTED from Alice → Bob:
    Type: encrypted_message
-   🔒 Encrypted data: QVU=...
-   🔓 EVE SUCCESSFULLY DECRYPTED: "Hello Bob!"
-   ⚠️  Alice and Bob think their conversation is private!
+   🔒 Encrypted data: eldeXl0ScF1Q...
+   🔓 EVE SUCCESSFULLY DECRYPTED: "Hello Bob"
 ```
 
-## 🎓 Educational Value
+## Limitations
 
-This demo teaches:
+This is teaching material, not cryptography to reuse.
 
-### 1. **Diffie-Hellman Protocol**
-- How public key exchange works
-- Mathematical foundations (modular arithmetic)
-- Why the discrete logarithm problem is hard
+- Toy parameters: p = 23, and private keys come from `Math.random()` in the range 2 to 20, so there are 19 possible keys. The arithmetic uses JavaScript numbers and does not scale to real key sizes.
+- The cipher XORs the text with the decimal digits of s. It stands in for real encryption and protects nothing.
+- Eve only listens. She shows why the discrete logarithm has to be infeasible to compute, not the active attack in which a man in the middle substitutes her own public keys. Nothing here authenticates the public keys, so that attack would succeed too; real protocols prevent it with signatures or certificates.
+- Ports 8080 and 8081 are hard-coded, and there are no automated tests.
 
-### 2. **Network Security Concepts**
-- Man-in-the-middle attacks
-- The importance of key size
-- Public vs. private information
+## License
 
-### 3. **Cryptographic Principles**
-- Forward secrecy
-- Why authentication is needed (DH doesn't provide it!)
-- Computational complexity
-
-### 4. **Real-World Applications**
-- TLS/SSL handshakes
-- VPN key exchange
-- Secure messaging protocols
-
-## 🔬 Technical Details
-
-### Cryptographic Functions
-
-```javascript
-// Modular exponentiation: (base^exp) mod modulus
-modPow(base, exp, modulus)
-
-// Public key generation
-publicKey = g^privateKey mod p
-
-// Shared secret computation
-sharedSecret = otherPublicKey^privateKey mod p
-
-// Simple XOR encryption (for demonstration only!)
-encrypted = XOR(message, sharedSecret)
-```
-
-### Protocol Flow
-
-```
-Phase 1: Connection Establishment
-├── Bob starts WebSocket server (8080)
-├── Eve starts proxy server (8081) and connects to Bob
-└── Alice connects to Eve (8081)
-
-Phase 2: Key Exchange
-├── Alice sends public key A to Eve
-├── Eve forwards to Bob (and stores A)
-├── Bob sends public key B to Eve
-└── Eve forwards to Alice (and stores B)
-
-Phase 3: Attack
-├── Eve attempts brute force on private keys
-├── Eve computes shared secret
-└── Eve can now decrypt all messages
-
-Phase 4: Communication
-├── Alice/Bob exchange encrypted messages
-├── Eve intercepts and decrypts everything
-└── Messages forwarded transparently
-```
-
-## ⚠️ Production Considerations
-
-### This Demo Uses Small Numbers for Education
-
-| Parameter | Demo Value | Production Value |
-|-----------|------------|------------------|
-| Prime (p) | 23 | 2048-4096 bits |
-| Private keys | 2-22 | 256+ bits |
-| Cracking time | ~0ms | Billions of years |
-
-### What's Missing for Production?
-
-- ❌ **Authentication**: No way to verify identities (vulnerable to MITM)
-- ❌ **Secure Primes**: Use safe primes and verified generators
-- ❌ **Key Derivation**: Use KDF (like HKDF) instead of direct encryption
-- ❌ **Forward Secrecy**: Use ephemeral keys (DHE/ECDHE)
-- ❌ **Real Encryption**: Replace XOR with AES-GCM or ChaCha20-Poly1305
-
-### Recommended Improvements for Real Use
-
-```javascript
-// Use crypto library for secure random numbers
-import { randomBytes } from 'crypto';
-
-// Use safe primes (Sophie Germain primes)
-const safePrimes = {
-  2048: "0xFFFFFFFFFFFFFFFFC90FDAA22168C234C4C6628B80DC1CD1...",
-  3072: "0xFFFFFFFFFFFFFFFFC90FDAA22168C234C4C6628B80DC1CD1...",
-  4096: "0xFFFFFFFFFFFFFFFFC90FDAA22168C234C4C6628B80DC1CD1..."
-};
-
-// Use established protocols
-// - TLS 1.3 for transport security
-// - Signal Protocol for messaging
-// - WireGuard for VPNs
-```
-
-## 📚 Additional Resources
-
-- [RFC 2631 - Diffie-Hellman Key Agreement](https://tools.ietf.org/html/rfc2631)
-- [The Mathematics of Diffie-Hellman](https://en.wikipedia.org/wiki/Diffie%E2%80%93Hellman_key_exchange)
-- [Discrete Logarithm Problem](https://en.wikipedia.org/wiki/Discrete_logarithm)
-- [Understanding Cryptography](https://www.crypto-textbook.com/)
-
-## 📝 License
-
-MIT License - feel free to use this for educational purposes!
-
-## 🤝 Contributing
-
-Contributions are welcome! Some ideas:
-
-- [ ] Add visual web interface
-- [ ] Implement elliptic curve DH (ECDH)
-- [ ] Add timing attack demonstrations
-- [ ] Create Jupyter notebook with visualizations
-- [ ] Add support for larger prime numbers
-
----
-
-<div align="center">
-
-**Made with ❤️ for cryptography education**
-
-</div>
+[MIT](LICENSE)
