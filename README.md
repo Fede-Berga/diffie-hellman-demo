@@ -25,7 +25,7 @@ bun run eve     # terminal 2: connects to Bob, listens on port 8081
 bun run alice   # terminal 3
 ```
 
-Alice tries Eve's port first and falls back to Bob's, so the same command serves both scenarios. Once the keys are exchanged, type a line at the `Alice>` or `Bob>` prompt to send it. Each process handles a single conversation: stop all of them with Ctrl+C before the next run.
+Alice tries Eve's port first and falls back to Bob's, so the same command serves both scenarios. Once the keys are exchanged, type a line at the `Alice>` or `Bob>` prompt to send it. Ctrl+C at a prompt ends the conversation, but Bob's server keeps listening until a second Ctrl+C and Eve keeps running until you stop her. The parties are not built to reconnect, so stop all of them before the next run.
 
 ## How it works
 
